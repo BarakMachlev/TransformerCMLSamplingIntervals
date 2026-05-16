@@ -18,7 +18,7 @@ def compute_data_normalization(in_data_loader, network_dynamic_input_size: int, 
     def iir_update(new, old):
         return (1 - alpha) * new + old * alpha
 
-    for _, rsl, tsl, metadata in in_data_loader:
+    for _, rsl, tsl, metadata, _, in in_data_loader:
         _data = torch.cat([rsl, tsl], dim=-1)
         _data = _data.reshape([-1, network_dynamic_input_size])
         mean_dynamic = iir_update(_data.mean(dim=0), mean_dynamic)
@@ -30,3 +30,34 @@ def compute_data_normalization(in_data_loader, network_dynamic_input_size: int, 
                                     std_dynamic.cpu().numpy(),
                                     mean_meta.cpu().numpy(),
                                     std_meta.cpu().numpy())
+
+def compute_attenuation_data_normalization(in_data_loader, network_dynamic_input_size: int, alpha: float = 0.9):
+    """
+    Compute normalization params for (attenuation, metadata).
+    Expects batches: (rain, attenuation, metadata, protocol_id)
+    """
+    mean_dynamic = None
+    std_dynamic = None
+    mean_meta = None
+    std_meta = None
+
+    def iir_update(new, old):
+        if old is None:
+            return new
+        return (1 - alpha) * new + old * alpha
+
+    for _, attenuation, metadata, _ in in_data_loader:
+        _data = attenuation.reshape([-1, network_dynamic_input_size])
+
+        mean_dynamic = iir_update(_data.mean(dim=0), mean_dynamic)
+        std_dynamic  = iir_update(_data.std(dim=0),  std_dynamic)
+
+        mean_meta = iir_update(metadata.mean(dim=0), mean_meta)
+        std_meta  = iir_update(metadata.std(dim=0),  std_meta)
+
+    return InputNormalizationConfig(
+        mean_dynamic.cpu().numpy(),
+        std_dynamic.cpu().numpy(),
+        mean_meta.cpu().numpy(),
+        std_meta.cpu().numpy(),
+    )

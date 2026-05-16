@@ -11,8 +11,6 @@ from pynncml.neural_networks.encoder_only_transformer.model import EncoderOnlyTr
 
 class TwoStepNetwork(nn.Module):
     """
-
-
     :param n_layers: integer that state the number of recurrent layers.
     :param rnn_type: enum that define the type of the recurrent layer (GRU or LSTM).
     :param normalization_cfg: a class pnc.neural_networks.InputNormalizationConfig which hold the normalization parameters.
@@ -74,10 +72,12 @@ class TwoStepNetwork(nn.Module):
 class TwoStepNetworkWithAttention(nn.Module):
 
     def __init__(self, normalization_cfg: neural_networks.InputNormalizationConfig,
-                 dynamic_input_size=4,
+                 dynamic_input_size=90,
                  metadata_input_size=2,
-                 d_model=512,
-                 metadata_n_features=32,
+                 d_model=256,
+                 protocol_n_features=16,
+                 metadata_n_features=16,
+                 num_protocols=12,
                  window_size=32,
                  dropout=0.1,
                  num_encoder_layers=4,
@@ -88,15 +88,22 @@ class TwoStepNetworkWithAttention(nn.Module):
                                          dynamic_input_size=dynamic_input_size,
                                          metadata_input_size=metadata_input_size,
                                          d_model=d_model,
+                                         protocol_n_features=protocol_n_features,
                                          metadata_n_features=metadata_n_features,
+                                         num_protocols=num_protocols,
                                          window_size=window_size,
                                          dropout=dropout,
                                          num_encoder_layers=num_encoder_layers,
                                          h=h)
         self.rh = RainHead(d_model)
         self.wdh = WetDryHead(d_model)
+        # NEW: learned log-precision per protocol
+        self.protocol_log_precision = nn.Parameter(torch.zeros(num_protocols))
 
-    def forward(self, data: torch.Tensor, metadata: torch.Tensor) -> (torch.Tensor, torch.Tensor):  # model forward pass
+    def forward(self,
+                data: torch.Tensor,
+                metadata: torch.Tensor,
+                protocol_id: torch.Tensor):
 
-        features = self.bb(data, metadata)
+        features = self.bb(data, metadata, protocol_id)
         return torch.cat([self.rh(features), self.wdh(features)], dim=-1)

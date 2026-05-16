@@ -185,46 +185,7 @@ def load_open_mrg(data_path="./data/",
                            change2min_max=change2min_max,
                            samples_type=samples_type,
                            sampling_interval_in_sec = sampling_interval_in_sec)
-
-    # Prints for debug:
-    if link_set.link_list:
-        link = link_set.link_list[0]
-        timestamps = link.time_array
-        n = len(timestamps)
-
-        # Format timestamps
-        first_four = [datetime.utcfromtimestamp(t).isoformat() for t in timestamps[:4]]
-        last_four = [datetime.utcfromtimestamp(t).isoformat() for t in timestamps[-4:]]
-        print(f"Downsample CML samples count: {n}")
-        print(f"🕒 First 4 DOWNSAMPLED CML timestamps: {first_four}")
-        print(f"🕓 Last 4 DOWNSAMPLED CML timestamps:  {last_four}")
-
-
-        # Δt and duration check
-        dt = np.diff(timestamps[:2])[0]
-        if samples_type != "original":
-            assert np.isclose(dt, sampling_interval_in_sec, atol=1), f"❌ Link Δt mismatch: expected {sampling_interval_in_sec}, got {dt}"
-            print(f"✅ Time step Δt = {dt}s")
-            assert n == expected_link_samples, f"❌ Sample count mismatch: expected {expected_link_samples}, got {n}"
-            print(f"✅ Sample count = {expected_link_samples}")
-        else:
-            print(f"ℹ️ Original sampling Δt = {dt}s (no downsampling applied)")
-
-        print(f"Type of link: {type(link)}")
-
-        # Print sublink ID if available
-        if hasattr(link, "sublink_id"):
-            print(f"🆔 Sublink ID: {link.sublink_id}")
-
-        print("Link Features (full attribute scan):")
-        for key, value in link.__dict__.items():
-            if isinstance(value, np.ndarray):
-                print(f"{key}: shape={value.shape}, dtype={value.dtype}")
-            else:
-                print(f"{key}: {type(value)}")
-    else:
-        print("⚠️ No links loaded for this region/time.")
-    # End debug.
+    
     return link_set, ps
 
 
@@ -249,7 +210,7 @@ def loader_open_mrg_dataset(data_path="./data/",
     :return: LinkDataset
     """
     # Set parameters based on sampling type
-    if samples_type == "min_max":
+    if samples_type in ["min_max", "average"]:
         change2min_max = True
     else:
         change2min_max = False

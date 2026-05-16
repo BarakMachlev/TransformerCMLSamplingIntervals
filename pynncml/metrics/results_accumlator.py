@@ -100,10 +100,24 @@ class GroupAnalysis:
 
         delta = ref - est
         norm = np.mean(ref)
+
         bias = self.apply_precision(np.mean(delta))
         rmse = self.apply_precision(np.sqrt(np.mean(delta ** 2)))
+        mae = self.apply_precision(np.mean(np.abs(delta)))
+
+
         nbias = self.apply_precision(bias / norm)
         nrmse = self.apply_precision(rmse / norm)
+        nmae = self.apply_precision(mae / norm)
+
+        rain_mask = ref > 0.1  # same threshold as wet/dry loss
+
+        if np.sum(rain_mask) > 1:
+            corr = self.apply_precision(
+                np.corrcoef(ref[rain_mask], est[rain_mask])[0, 1]
+            )
+        else:
+            corr = np.nan
         print("-" * 50, "Results Summery", "-" * 50)
         table = [
             ["Metric", *[f"{self.apply_precision(gs)}<r<{self.apply_precision(ge)}" for gs, ge in group_selection]],
@@ -115,7 +129,11 @@ class GroupAnalysis:
             ["RMSE", rmse, *["-" for _ in range(len(group_selection) - 1)]],
             ["BIAS", bias, *["-" for _ in range(len(group_selection) - 1)]],
             ["NRMSE", nrmse, *["-" for _ in range(len(group_selection) - 1)]],
-            ["NBIAS", nbias, *["-" for _ in range(len(group_selection) - 1)]]
+            ["NBIAS", nbias, *["-" for _ in range(len(group_selection) - 1)]],
+            
+            ["MAE", mae, *["-" for _ in range(len(group_selection) - 1)]],
+            ["NMAE", nmae, *["-" for _ in range(len(group_selection) - 1)]],
+            ["CORR_wet", corr, *["-" for _ in range(len(group_selection) - 1)]],
         ]
         tab = PrettyTable(table[0])
         tab.add_rows(table[1:])

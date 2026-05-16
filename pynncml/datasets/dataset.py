@@ -20,19 +20,47 @@ class LinkDataset(Dataset):
         """
         return self.link_set.n_links
 
+     #def __getitem__(self, idx):
+     #   """
+     #   Get the item of the link
+     #   :param idx: index of the link
+
+     #   :return: rain, rsl, tsl, metadata
+     #   """
+     #   rain, rsl, tsl, metadata = self.link_set.get_link(idx).data_alignment()
+     #   if self.transform:
+     #       raise NotImplemented
+     #   if self.target_transform:
+     #       raise NotImplemented
+     #   return rain, rsl, tsl, metadata'''
+    
+    '''def __getitem__(self, idx):
+        """
+        :return: rain, rsl, tsl, metadata, protocol_id
+        """
+        link = self.link_set.get_link(idx)
+
+        rain, rsl, tsl, metadata = link.data_alignment()
+
+        protocol_id = link.protocol_id  # scalar or int
+
+        return rain, rsl, tsl, metadata, protocol_id'''
+    
     def __getitem__(self, idx):
         """
-        Get the item of the link
-        :param idx: index of the link
-
-        :return: rain, rsl, tsl, metadata
+        :return: rain, attenuation, metadata, protocol_id
         """
-        rain, rsl, tsl, metadata = self.link_set.get_link(idx).data_alignment()
-        if self.transform:
-            raise NotImplemented
-        if self.target_transform:
-            raise NotImplemented
-        return rain, rsl, tsl, metadata
+        link = self.link_set.get_link(idx)
+
+        rain, rsl, tsl, metadata = link.data_alignment()
+
+        assert tsl is not None, "TSL required to compute attenuation"
+
+        attenuation = tsl - rsl  # physical attenuation
+
+        protocol_id = link.protocol_id
+
+        return rain, attenuation, metadata, protocol_id
 
 
 class SubSequentLinkDataset(Dataset):

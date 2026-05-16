@@ -34,6 +34,9 @@ class LinkBase(object):
         self.time_array = time_array
         self.meta_data: MetaData = meta_data
 
+        self.link_index = None
+        self.protocol_id = None
+
     def plot_link_position(self):
         """
         Plot the link position
@@ -394,6 +397,204 @@ class Link(LinkBase):
             meta_data=self.meta_data,
             rain_gauge=rain_sub,
             link_tsl=tsl_sub,
+            gauge_ref=self.gauge_ref
+        )
+    
+
+    def create_avg_link(self, step_size: int) -> "Link":
+        """
+        Average the link data over fixed intervals.
+        :param step_size: Window size in seconds (e.g., 900 → average of 90 samples)
+        """
+        assert step_size % 10 == 0, "Step size must be a multiple of 10 seconds"
+        k = step_size // 10
+
+        n = (len(self.link_rsl) // k) * k
+
+        rsl_avg = self.link_rsl[:n].reshape(-1, k).mean(axis=1)
+        time_avg = self.time_array[:n:k]
+
+        tsl_avg = (
+            self.link_tsl[:n].reshape(-1, k).mean(axis=1)
+            if self.link_tsl is not None else None
+        )
+
+        rain_avg = (
+            self.rain_gauge[:n].reshape(-1, k).mean(axis=1)
+            if self.rain_gauge is not None else None
+        )
+
+        return Link(
+            rsl_avg,
+            time_avg,
+            meta_data=self.meta_data,
+            rain_gauge=rain_avg,
+            link_tsl=tsl_avg,
+            gauge_ref=self.gauge_ref
+        )
+    
+
+    def create_compressed_instantaneous_universal_link(self, sampling_interval_in_sec: int) -> "Link":
+        """
+        Universal instantaneous representation (NO feature_mask):
+        - Keeps 10-sec base resolution inside each 15-min token (90 samples).
+        - For a given sampling interval, keeps only the samples that would exist,
+        and DUPLICATES each kept sample until the next kept sample (forward-hold).
+        Example for 30 sec (k=3): [1,2,3,4,...] -> [1,1,1,4,4,4,...]
+        """
+        assert sampling_interval_in_sec % 10 == 0, "sampling_interval_in_sec must be multiple of 10 seconds"
+        assert 900 % sampling_interval_in_sec == 0, "sampling_interval_in_sec must divide 900 seconds"
+
+        k = sampling_interval_in_sec // 10          # stride on 10-sec grid
+        base_token_len = 900 // 10                  # 90 samples per 15 minutes
+        N = len(self.link_rsl)
+        T = N // base_token_len
+        N_use = T * base_token_len
+
+        rsl = self.link_rsl[:N_use]
+        time = self.time_array[:N_use]
+        tsl = self.link_tsl[:N_use] if self.link_tsl is not None else None
+        rain = self.rain_gauge[:N_use] if self.rain_gauge is not None else None
+
+        rsl_tok = rsl.reshape(T, base_token_len)                     # [T, 90]
+        tsl_tok = tsl.reshape(T, base_token_len) if tsl is not None else None
+
+        # take every k-th sample and repeat it k times -> length stays 90
+        rsl_s = rsl_tok[:, ::k]                                      # [T, 90/k]
+        rsl_tok_u = np.repeat(rsl_s, k, axis=1).astype(np.float32)    # [T, 90]
+
+        if tsl_tok is not None:
+            tsl_s = tsl_tok[:, ::k]
+            tsl_tok_u = np.repeat(tsl_s, k, axis=1).astype(np.float32)
+        else:
+            tsl_tok_u = None
+
+        rsl_univ = rsl_tok_u.reshape(-1)
+        tsl_univ = tsl_tok_u.reshape(-1) if tsl_tok_u is not None else None
+
+        return Link(
+            rsl_univ,
+            time,
+            meta_data=self.meta_data,
+            rain_gauge=rain,
+            link_tsl=tsl_univ,
+            gauge_ref=self.gauge_ref
+        )
+
+
+    def create_avg_universal_link(self, step_size: int) -> "Link":
+        """
+        Universal average representation (NO feature_mask):
+        - Keeps 10-sec base resolution inside each 15-min token (90 samples).
+        - For each averaging window of length step_size, computes the average and
+        DUPLICATES it across the entire window (piecewise constant).
+        If step_size=900 -> one constant value repeated 90 times per token.
+        """
+        assert step_size % 10 == 0, "step_size must be a multiple of 10 seconds"
+        assert 900 % step_size == 0, "step_size must divide 900 seconds"
+
+        k = step_size // 10
+        base_token_len = 900 // 10
+        N = len(self.link_rsl)
+        T = N // base_token_len
+        N_use = T * base_token_len
+
+        rsl = self.link_rsl[:N_use]
+        time = self.time_array[:N_use]
+        tsl = self.link_tsl[:N_use] if self.link_tsl is not None else None
+        rain = self.rain_gauge[:N_use] if self.rain_gauge is not None else None
+
+        rsl_tok = rsl.reshape(T, base_token_len)  # [T, 90]
+        tsl_tok = tsl.reshape(T, base_token_len) if tsl is not None else None
+
+        rsl_tok_u = np.zeros_like(rsl_tok, dtype=np.float32)
+        tsl_tok_u = np.zeros_like(tsl_tok, dtype=np.float32) if tsl_tok is not None else None
+
+        for s in range(0, base_token_len, k):
+            e = s + k
+            rsl_mean = rsl_tok[:, s:e].mean(axis=1).astype(np.float32)          # [T]
+            rsl_tok_u[:, s:e] = rsl_mean[:, None]                               # repeat over window
+
+            if tsl_tok_u is not None:
+                tsl_mean = tsl_tok[:, s:e].mean(axis=1).astype(np.float32)
+                tsl_tok_u[:, s:e] = tsl_mean[:, None]
+
+        rsl_univ = rsl_tok_u.reshape(-1)
+        tsl_univ = tsl_tok_u.reshape(-1) if tsl_tok_u is not None else None
+
+        return Link(
+            rsl_univ,
+            time,
+            meta_data=self.meta_data,
+            rain_gauge=rain,
+            link_tsl=tsl_univ,
+            gauge_ref=self.gauge_ref
+        )
+
+
+    def create_min_max_universal_link(self, step_size: int) -> "Link":
+        """
+        Universal min/max representation (NO feature_mask):
+        - Keeps 10-sec base resolution inside each 15-min token (90 samples).
+        - For each window of length step_size, compute min/max.
+        - Fill the FIRST HALF of the window with MAX and the SECOND HALF with MIN for RSL:
+            [MAXrsl ... MAXrsl, MINrsl ... MINrsl]
+        - For TSL do the opposite:
+            [MINtsl ... MINtsl, MAXtsl ... MAXtsl]
+        """
+        assert step_size % 10 == 0, "step_size must be a multiple of 10 seconds"
+        assert 900 % step_size == 0, "step_size must divide 900 seconds"
+        assert step_size >= 20, "need at least 2 samples per window to split max/min"
+
+        k = step_size // 10
+        assert k % 2 == 0, "step_size must correspond to an even number of 10-sec samples (so we can split half/half)"
+        half = k // 2
+
+        base_token_len = 900 // 10
+        N = len(self.link_rsl)
+        T = N // base_token_len
+        N_use = T * base_token_len
+
+        rsl = self.link_rsl[:N_use]
+        time = self.time_array[:N_use]
+        tsl = self.link_tsl[:N_use] if self.link_tsl is not None else None
+        rain = self.rain_gauge[:N_use] if self.rain_gauge is not None else None
+
+        rsl_tok = rsl.reshape(T, base_token_len)  # [T, 90]
+        tsl_tok = tsl.reshape(T, base_token_len) if tsl is not None else None
+
+        rsl_tok_u = np.zeros_like(rsl_tok, dtype=np.float32)
+        tsl_tok_u = np.zeros_like(tsl_tok, dtype=np.float32) if tsl_tok is not None else None
+
+        for s in range(0, base_token_len, k):
+            e = s + k
+
+            rsl_win = rsl_tok[:, s:e]
+            rsl_max = rsl_win.max(axis=1).astype(np.float32)  # [T]
+            rsl_min = rsl_win.min(axis=1).astype(np.float32)  # [T]
+
+            # RSL: first half MAX, second half MIN
+            rsl_tok_u[:, s:s+half] = rsl_max[:, None]
+            rsl_tok_u[:, s+half:e] = rsl_min[:, None]
+
+            if tsl_tok_u is not None:
+                tsl_win = tsl_tok[:, s:e]
+                tsl_max = tsl_win.max(axis=1).astype(np.float32)
+                tsl_min = tsl_win.min(axis=1).astype(np.float32)
+
+                # TSL: first half MIN, second half MAX (opposite of RSL)
+                tsl_tok_u[:, s:s+half] = tsl_min[:, None]
+                tsl_tok_u[:, s+half:e] = tsl_max[:, None]
+
+        rsl_univ = rsl_tok_u.reshape(-1)
+        tsl_univ = tsl_tok_u.reshape(-1) if tsl_tok_u is not None else None
+
+        return Link(
+            rsl_univ,
+            time,
+            meta_data=self.meta_data,
+            rain_gauge=rain,
+            link_tsl=tsl_univ,
             gauge_ref=self.gauge_ref
         )
 

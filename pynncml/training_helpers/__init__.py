@@ -1,1 +1,2 @@
 from pynncml.training_helpers.compute_data_normalization import compute_data_normalization
+from pynncml.training_helpers.compute_data_normalization import compute_attenuation_data_normalization

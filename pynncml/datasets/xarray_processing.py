@@ -3,6 +3,27 @@ from tqdm import tqdm
 
 from pynncml.datasets import MetaData, Link, LinkSet
 
+# ----------------------------------
+# Protocol mapping (global constant)
+# ----------------------------------
+PROTOCOL_MAP = {
+    ("instantaneous", 900): 0,
+    ("instantaneous", 450): 1,
+    ("instantaneous", 300): 2,
+    ("instantaneous", 180): 3,
+    ("instantaneous", 150): 4,
+    ("instantaneous", 100): 5,
+    ("instantaneous", 90): 6,
+    ("instantaneous", 60): 7,
+    ("instantaneous", 50): 8,
+    ("instantaneous", 30): 9,
+    ("instantaneous", 20): 10,
+    ("instantaneous", 10): 11,
+    #"min_max": 12,
+    #"average": 13,
+}
+
+INSTANTANEOUS_INTERVALS = [900, 450, 300, 180, 150, 100, 90, 60, 50, 30, 20, 10]
 
 def xarray_time_slice(ds, start_time, end_time):
     """
@@ -99,8 +120,10 @@ def xarray2link(ds,
     :param restriction_minimum_length: Minimum link length in kilometers (default is 0 = no restriction)
     :return: LinkSet object with filtered and compressed links
     """
-
+    print("xarray2link file:", __file__)
+    print("samples_type:", repr(samples_type))
     link_list = []
+    physical_link_counter = 0  # counts accepted physical links only
     for i in tqdm(range(len(ds.sublink_id))):
         ds_sublink = ds.isel(sublink_id=i)
         md = MetaData(float(ds_sublink.frequency),
@@ -130,11 +153,55 @@ def xarray2link(ds,
                 else:
                     link = None  # Link is too far from the gauge
             if link is not None:
+                physical_link_id = physical_link_counter  # stable ID for this physical link
+                physical_link_counter += 1
+
+                #validation universalTransformer:
+                
                 if samples_type == "min_max":
-                    link = link.create_min_max_link(step_size = 900)
+                    #link = link.create_min_max_link(step_size=900)
+                    link = link.create_min_max_universal_link(step_size=900)
                 elif samples_type == "instantaneous":
-                    link = link.create_compressed_instantaneous_link(sampling_interval_in_sec)
+                    #link = link.create_compressed_instantaneous_link(sampling_interval_in_sec)
+                    link = link.create_compressed_instantaneous_universal_link(sampling_interval_in_sec)
+                elif samples_type == "average":
+                    #link = link.create_avg_link(step_size=900)
+                    link = link.create_avg_universal_link(step_size=900)
+
+
+                # assign the physical link id (same across all derived variants)
+                link.link_index = physical_link_id
+
+                # assign protocol class id
+                if samples_type in ("min_max", "average"):
+                    link.protocol_id = PROTOCOL_MAP[samples_type]
+                else:
+                    link.protocol_id = PROTOCOL_MAP[(samples_type, sampling_interval_in_sec)]
 
                 link_list.append(link)
+                '''
+                # training universalTransformer:
+                
+                ## average (15-min)
+                #avg_link = link.create_avg_universal_link(900)
+                #avg_link.link_index = physical_link_id
+                #avg_link.protocol_id = PROTOCOL_MAP["average"]
+                #link_list.append(avg_link)
+
+                ## min_max (15-min)
+                #mm_link = link.create_min_max_universal_link(900)
+                #mm_link.link_index = physical_link_id
+                #mm_link.protocol_id = PROTOCOL_MAP["min_max"]
+                #link_list.append(mm_link)
+
+                # For each instantaneous protocol create a derived link
+                for interval in INSTANTANEOUS_INTERVALS:
+                    derived_link = link.create_compressed_instantaneous_universal_link(interval)
+                    # Assign stable physical link ID
+                    derived_link.link_index = physical_link_id
+                    # Assign protocol ID
+                    derived_link.protocol_id = PROTOCOL_MAP[("instantaneous", interval)]
+                    link_list.append(derived_link)
+                '''
 
     return LinkSet(link_list)
