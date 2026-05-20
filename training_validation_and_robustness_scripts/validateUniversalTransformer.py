@@ -19,7 +19,7 @@ xy_min = [1.29e6, 0.565e6]  # Link Region
 xy_max = [1.34e6, 0.5875e6]
 time_slice = slice("2015-06-01", "2015-08-31")  # Time Interval
 
-combinations = [("instantaneous", sec) for sec in [10, 20]]#, 30, 50, 60, 90, 100, 150, 180, 300, 450, 900]]
+combinations = [("instantaneous", sec) for sec in [10, 20, 30, 50, 60, 90, 100, 150, 180, 300, 450, 900]]
 #combinations.append(("min_max", None))
 #combinations.append(("average", None))
 
