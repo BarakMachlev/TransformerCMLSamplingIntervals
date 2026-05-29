@@ -104,5 +104,7 @@ And include PyTorch implementation of the OpenMRG dataset:
 
 [10] van de Beek, Remco CZ, et al. OpenMRG: Open data from Microwave links, Radar, and Gauges for rainfall quantification in Gothenburg, Sweden. No. EGU23-14295. Copernicus Meetings, 2023.
 
+[11] C. Chwala, A. Overeem, E. Øydvin, L. Petersson W˚ardh, J. Seidel, M. Graf, B. Walraven, E. Covi, H. Habi, M. Fencl et al., “Open-source tools for processing opportunistic rainfall sensor data: An overview of existing tools and the new opensense 535 software packages poligrain, pypwsqc and mergeplg,” 2025.
+
 
 If you found one of those methods usefully please cite.
