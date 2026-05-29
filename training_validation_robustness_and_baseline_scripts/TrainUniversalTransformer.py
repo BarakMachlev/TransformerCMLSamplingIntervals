@@ -63,11 +63,11 @@ else:
     print("  - Running on CPU")
 
 # Predefined validation sets
-validation_set_1 = [0, 4, 10, 12, 18, 22, 28, 30, 55, 33, 35, 45, 49, 67, 68, 70]
-validation_set_2 = [5, 9, 16, 34, 39, 40, 42, 47, 54, 31, 56, 61, 62, 64, 73, 79]
+validation_set_1 = [0, 4, 10, 12, 18, 22, 28, 30, 33, 35, 45, 49, 55, 67, 68, 70]
+validation_set_2 = [5, 9, 16, 31, 34, 39, 40, 42, 47, 54, 56, 61, 62, 64, 73, 79]
 validation_set_3 = [3, 6, 7, 8, 13, 17, 19, 25, 36, 38, 44, 50, 53, 65, 66, 76]
-validation_set_4 = [11, 15, 24, 26, 21, 32, 41, 43, 46, 48, 57, 58, 72, 75, 77, 78]
-validation_set_5 = [1, 2, 14, 20, 27, 23, 29, 37, 51, 52, 59, 60, 63, 69, 71, 74]
+validation_set_4 = [11, 15, 21, 24, 26, 32, 41, 43, 46, 48, 57, 58, 72, 75, 77, 78]
+validation_set_5 = [1, 2, 14, 20, 23, 27, 29, 37, 51, 52, 59, 60, 63, 69, 71, 74]
 
 # Choose which validation set to use (1 to 5)
 fold = 1  # 👈 Change this to 2, 3, 4, or 5 for other runs
